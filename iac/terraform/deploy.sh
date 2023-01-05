@@ -1,4 +1,5 @@
 #!/bin/bash
+#!/bin/bash
 
 declare UNIQUER=""
 declare LOCATION=""
