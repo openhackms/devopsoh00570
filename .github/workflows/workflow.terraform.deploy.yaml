@@ -58,6 +58,10 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -detailed-exitcode -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ steps.resources_prefix.outputs.result }}" || exit 0
         id: tfplan
+        
+      #- name: Terraform Plan
+      #  run: terraform plan -detailed-exitcode -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ env.RESOURCES_PREFIX }}" -var="docker_registry_server_url=https://ghcr.io" -var="docker_registry_server_username=ghcr" -var="docker_registry_server_password=${{ secrets.GHCR_READ_TOKEN }}" || exit 0
+     # id: tfplan
 
   deploy:
     name: "Deploy"
@@ -65,6 +69,9 @@ jobs:
     if: needs.preview.outputs.TFPLAN_EXITCODE == 2 # it is not part of the challenge, but nice to have
     runs-on: ubuntu-latest
     environment: production
+    
+#     - name: Terraform Apply
+#     run: terraform apply -auto-approve -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ needs.preview.outputs.RESOURCES_PREFIX }}" -var="docker_registry_server_url=https://ghcr.io" -var="docker_registry_server_username=ghcr" -var="docker_registry_server_password=${{ secrets.GHCR_READ_TOKEN }}"
 
     steps:
       # Checkout the repository to the GitHub Actions runner
