@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       RESOURCES_PREFIX: ${{ steps.resources_prefix.outputs.result }}
+      SQL_PASSWORD: ${{ steps.get_secrets_kv.outputs.SQL-PASSWORD }}
 
     steps:
       # Checkout the repository to the GitHub Actions runner
@@ -46,6 +47,14 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      # Get SQL-PASSWORD from Key Vault
+      - name: Get Secrets from Azure Key Vault
+        id: get_secrets_kv
+        uses: Azure/get-keyvault-secrets@v1
+        with:
+          keyvault: "${{ steps.resources_prefix.outputs.result }}kv"
+          secrets: "SQL-PASSWORD"
+
       # Preview changes
       - name: "What-If"
         uses: Azure/cli@v1
@@ -55,7 +64,7 @@ jobs:
               --name ${{ github.run_id }} \
               --template-file ${{ env.WORKDIR }}/main.bicep \
               --location "${{ secrets.LOCATION }}" \
-              --parameters resourcesPrefix=${{ steps.resources_prefix.outputs.result }}
+              --parameters resourcesPrefix=${{ steps.resources_prefix.outputs.result }} sqlServerAdminPassword=${{ steps.get_secrets_kv.outputs.SQL-PASSWORD }}
 
   deploy:
     name: "Deploy"
@@ -83,4 +92,4 @@ jobs:
               --name ${{ github.run_id }} \
               --template-file ${{ env.WORKDIR }}/main.bicep \
               --location "${{ secrets.LOCATION }}" \
-              --parameters resourcesPrefix=${{ needs.preview.outputs.RESOURCES_PREFIX }}
+              --parameters resourcesPrefix=${{ needs.preview.outputs.RESOURCES_PREFIX }} sqlServerAdminPassword=${{ needs.preview.outputs.SQL_PASSWORD }}
