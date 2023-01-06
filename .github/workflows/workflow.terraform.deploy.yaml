@@ -31,6 +31,7 @@ jobs:
     outputs:
       TFPLAN_EXITCODE: ${{ steps.tfplan.outputs.exitcode }}
       RESOURCES_PREFIX: ${{ steps.resources_prefix.outputs.result }}
+      SQL_PASSWORD: ${{ steps.get_secrets_kv.outputs.SQL-PASSWORD }}
 
     steps:
       # Checkout the repository to the GitHub Actions runner
@@ -53,15 +54,25 @@ jobs:
       - name: Terraform Init
         run: terraform init -backend-config=resource_group_name="${{ secrets.TFSTATE_RESOURCES_GROUP_NAME }}" -backend-config=storage_account_name="${{ secrets.TFSTATE_STORAGE_ACCOUNT_NAME }}" -backend-config=container_name="${{ secrets.TFSTATE_STORAGE_CONTAINER_NAME }}" -backend-config=key="${{ secrets.TFSTATE_KEY }}"
 
+      # Login to Azure with Service Principal
+      - name: Azure Login
+        uses: Azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Get SQL-PASSWORD from Key Vault
+      - name: Get Secrets from Azure Key Vault
+        id: get_secrets_kv
+        uses: Azure/get-keyvault-secrets@v1
+        with:
+          keyvault: "${{ steps.resources_prefix.outputs.result }}kv"
+          secrets: "SQL-PASSWORD"
+
       # Generates an execution plan for Terraform
       # An exit code of 2 indicates there were changes detected and will throw an error on GitHub Action. "|| exit 0" overrides it. Just continue for now, we'll check next step
       - name: Terraform Plan
-        run: terraform plan -detailed-exitcode -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ steps.resources_prefix.outputs.result }}" || exit 0
+        run: terraform plan -detailed-exitcode -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ steps.resources_prefix.outputs.result }}" -var="mssql_server_administrator_login_password=${{ steps.get_secrets_kv.outputs.SQL-PASSWORD }}" || exit 0
         id: tfplan
-        
-      #- name: Terraform Plan
-      #  run: terraform plan -detailed-exitcode -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ env.RESOURCES_PREFIX }}" -var="docker_registry_server_url=https://ghcr.io" -var="docker_registry_server_username=ghcr" -var="docker_registry_server_password=${{ secrets.GHCR_READ_TOKEN }}" || exit 0
-     # id: tfplan
 
   deploy:
     name: "Deploy"
@@ -69,9 +80,6 @@ jobs:
     if: needs.preview.outputs.TFPLAN_EXITCODE == 2 # it is not part of the challenge, but nice to have
     runs-on: ubuntu-latest
     environment: production
-    
-#     - name: Terraform Apply
-#     run: terraform apply -auto-approve -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ needs.preview.outputs.RESOURCES_PREFIX }}" -var="docker_registry_server_url=https://ghcr.io" -var="docker_registry_server_username=ghcr" -var="docker_registry_server_password=${{ secrets.GHCR_READ_TOKEN }}"
 
     steps:
       # Checkout the repository to the GitHub Actions runner
@@ -95,4 +103,4 @@ jobs:
 
       # Terraform Apply
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ needs.preview.outputs.RESOURCES_PREFIX }}"
+        run: terraform apply -auto-approve -var="location=${{ secrets.LOCATION }}" -var="resources_prefix=${{ needs.preview.outputs.RESOURCES_PREFIX }}" -var="mssql_server_administrator_login_password=${{ needs.preview.outputs.SQL_PASSWORD }}"
